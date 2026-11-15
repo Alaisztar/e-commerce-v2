@@ -1,14 +1,18 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 const db = require('../db');
 const sendOTPEmail = require('../utils/mailer');
 
 const router = express.Router();
 
-const generateToken = (id,role) => {
-  return jwt.sign({id, role}, process.env.JWT_SECRET, {expiresIn: '7d'});
-}
+// Google OAuth client — initialized once, reused per request.
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+const generateToken = (id, role) => {
+  return jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '7d' });
+};
 
 // ==========================================
 // REGISTER ROUTE (Now generates OTP)
@@ -100,6 +104,70 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Server error during login' });
+  }
+});
+
+// ==========================================
+// GOOGLE SIGN-IN ROUTE
+// ==========================================
+router.post('/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ error: 'Google credential is required' });
+    }
+
+    // 1. Verify the token with Google (cryptographic proof it's genuine)
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+
+    if (!payload || !payload.email) {
+      return res.status(401).json({ error: 'Could not read email from Google token' });
+    }
+
+    const { email, given_name, family_name } = payload;
+
+    // 2. Find existing user, or create a new customer
+    const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+
+    let user;
+
+    if (users.length === 0) {
+      // New user — create as customer.
+      // password is NULL: this account has no local password.
+      const [result] = await db.query(
+        `INSERT INTO users (first_name, last_name, email, password, role) 
+         VALUES (?, ?, ?, ?, ?)`,
+        [given_name || 'User', family_name || '', email, null, 'customer']
+      );
+
+      const [newUser] = await db.query('SELECT * FROM users WHERE id = ?', [result.insertId]);
+      user = newUser[0];
+    } else {
+      user = users[0];
+    }
+
+    // 3. Issue OUR JWT, same shape as /login
+    const token = generateToken(user.id, user.role);
+
+    res.json({
+      message: 'Google login successful',
+      token,
+      user: {
+        id: user.id,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        email: user.email,
+        role: user.role
+      }
+    });
+
+  } catch (error) {
+    console.error('Google login error:', error);
+    res.status(401).json({ error: 'Invalid or expired Google credential' });
   }
 });
 

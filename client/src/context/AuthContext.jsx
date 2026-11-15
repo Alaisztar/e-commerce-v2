@@ -34,7 +34,25 @@ export const AuthProvider = ({ children }) => {
     return data.user;
   };
 
-    // Update the signature to accept the new fields
+  // Google Sign-In: sends the Google credential to the backend,
+  // which verifies it, finds-or-creates the user, and returns OUR JWT.
+  const googleLogin = async (credential) => {
+    const res = await fetch('http://localhost:5000/api/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Google Sign-In failed');
+
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    setUser(data.user);
+    return data.user;
+  };
+
+  // Update the signature to accept the new fields
   const register = async (firstName, middleName, lastName, suffix, email, phone, password) => {
     const res = await fetch('http://localhost:5000/api/auth/register', {
       method: 'POST',
@@ -45,7 +63,7 @@ export const AuthProvider = ({ children }) => {
 
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Registration failed');
-    return data.email; 
+    return data.email;
   };
 
   // Add the verifyOTP function
@@ -75,7 +93,7 @@ export const AuthProvider = ({ children }) => {
   if (loading) return <div>Loading...</div>;
 
   return (
-    <AuthContext.Provider value={{ user, login, register, verifyOTP, logout }}>
+    <AuthContext.Provider value={{ user, login, googleLogin, register, verifyOTP, logout }}>
       {children}
     </AuthContext.Provider>
   );

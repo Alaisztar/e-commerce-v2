@@ -1,19 +1,20 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function Login() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    role: 'customer' // Default role
+    role: 'customer'
   });
-  
+
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  
-  const { login } = useAuth();
+
+  const { login, googleLogin } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -26,7 +27,7 @@ export default function Login() {
   const validateForm = () => {
     const newErrors = {};
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    
+
     if (!emailRegex.test(formData.email)) newErrors.email = 'Please enter a valid email address';
     if (!formData.password) newErrors.password = 'Password is required';
 
@@ -41,8 +42,7 @@ export default function Login() {
     setLoading(true);
     try {
       const user = await login(formData.email, formData.password, formData.role);
-      
-      // Redirect based on role returned from database
+
       if (user.role === 'admin') {
         navigate('/admin');
       } else {
@@ -50,6 +50,25 @@ export default function Login() {
       }
     } catch (err) {
       setErrors({ server: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Google login: role is decided by the DB, not the role selector above.
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setErrors({});
+    setLoading(true);
+    try {
+      const user = await googleLogin(credentialResponse.credential);
+
+      if (user.role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
+    } catch (err) {
+      setErrors({ server: err.message || 'Google Sign-In failed. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -73,7 +92,6 @@ export default function Login() {
         <div className="relative z-10 text-blue-200 text-sm">
           © {new Date().getFullYear()} MyStore. All rights reserved.
         </div>
-        {/* Decorative circles */}
         <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-white opacity-5"></div>
         <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 rounded-full bg-white opacity-5"></div>
       </div>
@@ -101,7 +119,7 @@ export default function Login() {
                   <input
                     type="radio" name="role" value="customer"
                     checked={formData.role === 'customer'} onChange={handleChange}
-                    className="sr-only" // Hide the actual radio button
+                    className="sr-only"
                   />
                   Customer
                 </label>
@@ -151,6 +169,28 @@ export default function Login() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
+
+          {/* Divider */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">Or continue with</span>
+            </div>
+          </div>
+
+          {/* Google Sign-In */}
+          <div className="flex justify-center w-full">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setErrors({ server: 'Google Login Failed. Please try again.' })}
+              theme="outline"
+              size="large"
+              width="384" // matches max-w-md (448px) minus padding ≈ 384px
+              text="signin_with"
+            />
+          </div>
 
           <p className="mt-8 text-center text-sm text-gray-600">
             Don't have an account? <Link to="/register" className="text-blue-600 font-medium hover:underline">Create one</Link>

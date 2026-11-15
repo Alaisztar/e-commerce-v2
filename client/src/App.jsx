@@ -1,10 +1,9 @@
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { Routes, Route } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import VerifyOTP from './pages/VerifyOTP';
-
 
 // A quick placeholder for the Customer Home Page
 function Home() {
@@ -44,25 +43,22 @@ function AdminDashboard() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/verify-otp" element={<VerifyOTP />} />
+    // NO <BrowserRouter> or <AuthProvider> here anymore!
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/verify-otp" element={<VerifyOTP />} />
 
-          {/* Customer Routes (Requires Login) */}
-          <Route element={<ProtectedRoute allowedRoles={['customer', 'admin']} />}>
-            <Route path="/" element={<Home />} />
-          </Route>
+      {/* Customer Routes (Requires Login) */}
+      <Route element={<ProtectedRoute allowedRoles={['customer', 'admin']} />}>
+        <Route path="/" element={<Home />} />
+      </Route>
 
-          {/* Admin Routes (Requires Admin Role) */}
-          <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
-            <Route path="/admin" element={<AdminDashboard />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+      {/* Admin Routes (Requires Admin Role) */}
+      <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+        <Route path="/admin" element={<AdminDashboard />} />
+      </Route>
+    </Routes>
   );
 }
